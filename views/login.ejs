@@ -37,7 +37,7 @@
 <body>
     <div class="login-card">
         <h2>🔒 เข้าสู่ระบบ</h2>
-        <% if(error) { %> <div class="error"><%= error %></div> <% } %>
+        <% if(locals.error) { %> <div class="error"><%= error %></div> <% } %>
         
         <form action="/login" method="POST">
             <input type="text" name="username" placeholder="Username" required>
@@ -52,4 +52,5 @@
         </a>
     </div>
 </body>
+
 </html>
