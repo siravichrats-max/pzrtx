@@ -106,4 +106,8 @@ if (require.main === module) {
         console.log(`Server running on port ${port}`);
     });
 }
+app.get('/register', (req, res) => {
+    res.render('register'); // ชื่อไฟล์ในโฟลเดอร์ views ต้องสะกดตรงกันนะ!
+});
+module.exports = app;
 
