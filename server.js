@@ -37,7 +37,8 @@ app.get('/', (req, res) => {
     if (req.session.loggedin) {
         res.redirect('/dashboard');
     } else {
-        res.render('login'); // Vercel จะหาไฟล์ login.ejs เจอแล้วตอนนี้
+        // โค้ดใหม่ (แก้แล้ว)
+res.render('login', { error: null }); // Vercel จะหาไฟล์ login.ejs เจอแล้วตอนนี้
     }
 });
 
@@ -105,3 +106,4 @@ if (require.main === module) {
         console.log(`Server running on port ${port}`);
     });
 }
+
