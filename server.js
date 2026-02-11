@@ -1,113 +1,75 @@
 const express = require('express');
 const session = require('express-session');
-const bodyParser = require('body-parser');
-const path = require('path'); // เรียกใช้ตัวช่วยระบุตำแหน่งไฟล์
-
+const path = require('path');
 const app = express();
-const port = process.env.PORT || 3000;
 
-// --- ตั้งค่า Path (จุดสำคัญที่ทำให้ Vercel พัง) ---
-// ใช้ path.join เพื่อให้ Server หาโฟลเดอร์เจอแน่นอน ไม่ว่าจะรันที่ไหน
+// --- การตั้งค่า Middleware ---
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views')); 
+app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // สำคัญ: เพื่อให้รับค่าจาก Form ได้
 
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
+// ตั้งค่า Session (แบบพื้นฐาน)
 app.use(session({
-    secret: 'secret',
-    resave: true,
-    saveUninitialized: true
+    secret: 'secret-key-iot',
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: false } // ปรับเป็น true ถ้าใช้ https
 }));
-
-// --- ข้อมูลจำลอง (Mock Data) ---
-let users = [{ username: 'heetad', password: '123' }];
-let sensorData = [
-    { id: 1, context: 'รถจอดนิ่ง', value: 0.02, status: 'Normal', desc: 'แรงโน้มถ่วงโลกปกติ', time: '10:00' },
-    { id: 2, context: 'ถนนเรียบ', value: 0.98, status: 'Normal', desc: 'การสั่นสะเทือนเล็กน้อย', time: '10:02' },
-    { id: 3, context: 'ถนนขรุขระ', value: 1.15, status: 'Warning', desc: 'ผิวจราจรไม่เรียบ', time: '10:04' },
-    { id: 4, context: 'ลูกระนาด', value: 1.80, status: 'Warning', desc: 'กระแทกช่วงสั้นๆ', time: '10:05' },
-    { id: 5, context: 'หลุมลึก/อันตราย', value: 3.40, status: 'Danger', desc: 'กระแทกรุนแรง!', time: '10:06' }
-];
 
 // --- Routes ---
 
-// หน้า Login
+// 1. หน้า Login (หน้าแรก)
 app.get('/', (req, res) => {
     if (req.session.loggedin) {
-        res.redirect('/dashboard');
-    } else {
-        // โค้ดใหม่ (แก้แล้ว)
-res.render('login', { error: null }); // Vercel จะหาไฟล์ login.ejs เจอแล้วตอนนี้
+        return res.redirect('/dashboard');
     }
+    // ส่ง error: null ไปด้วยเพื่อป้องกัน ReferenceError ใน EJS
+    res.render('login', { error: null });
 });
 
-// ตรวจสอบ Login
-app.post('/auth', (req, res) => {
-    let username = req.body.username;
-    let password = req.body.password;
+// 2. รับข้อมูล Login (POST)
+app.post('/login', (req, res) => {
+    const { username, password } = req.body;
     
-    // ตรวจสอบ user (แบบง่าย)
-    let user = users.find(u => u.username === username && u.password === password);
-
-    if (user) {
+    // ตรงนี้คือตัวอย่างตรวจสอบ (ไปปรับแก้ตามระบบ Database ของคุณได้เลย)
+    if (username === 'admin' && password === '1234') {
         req.session.loggedin = true;
         req.session.username = username;
         res.redirect('/dashboard');
     } else {
-        res.send('Incorrect Username and/or Password!');
+        // ถ้าผิด ส่งข้อความ Error กลับไป
+        res.render('login', { error: 'Username หรือ Password ไม่ถูกต้อง' });
     }
 });
 
-// หน้า Dashboard
+// 3. หน้าสมัครสมาชิก
+app.get('/register', (req, res) => {
+    res.render('register', { error: null });
+});
+
+// 4. หน้า Dashboard (ต้อง Login ก่อนถึงจะเข้าได้)
 app.get('/dashboard', (req, res) => {
     if (req.session.loggedin) {
-        res.render('dashboard', { 
-            user: req.session.username,
-            data: sensorData
-        });
+        res.render('dashboard', { user: req.session.username });
     } else {
-        res.send('Please login to view this page!');
+        res.redirect('/');
     }
 });
 
-// API สำหรับรับค่าจาก Arduino (Hardware)
-app.post('/api/update', (req, res) => {
-    const { id, value, status } = req.body;
-    
-    // อัปเดตข้อมูลในอาเรย์
-    let item = sensorData.find(d => d.id == id);
-    if (item) {
-        item.value = value;
-        item.status = status;
-        
-        // อัปเดตเวลาปัจจุบัน
-        let now = new Date();
-        item.time = now.getHours() + ":" + String(now.getMinutes()).padStart(2, '0');
-    }
-    
-    console.log(`Updated ID ${id}: ${value}G (${status})`);
-    res.json({ success: true, message: "Data updated" });
-});
-
-// Logout
+// 5. Logout
 app.get('/logout', (req, res) => {
     req.session.destroy();
     res.redirect('/');
 });
 
-// --- ส่วนสำคัญสำหรับ Vercel ---
-// ต้อง Export app ออกไปเพื่อให้ Vercel เอาไปรันได้
-module.exports = app;
-
-// สั่งรัน Server (ทำงานเฉพาะตอนรันในคอม local)
-if (require.main === module) {
-    app.listen(port, () => {
-        console.log(`Server running on port ${port}`);
+// --- ส่วนสำหรับ Vercel ---
+const PORT = process.env.PORT || 3000;
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`Server running at http://localhost:${PORT}`);
     });
 }
-app.get('/register', (req, res) => {
-    res.render('register'); // ชื่อไฟล์ในโฟลเดอร์ views ต้องสะกดตรงกันนะ!
-});
-module.exports = app;
 
+module.exports = app; // สำคัญมากสำหรับ Vercel
